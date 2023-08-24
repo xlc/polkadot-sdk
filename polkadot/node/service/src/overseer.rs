@@ -44,7 +44,7 @@ use polkadot_overseer::{
 
 use polkadot_primitives::runtime_api::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
-use sc_client_api::AuxStore;
+use sc_client_api::{AuxStore, BlockPinning};
 use sc_keystore::LocalKeystore;
 use sc_network::NetworkStateInfo;
 use sp_api::ProvideRuntimeApi;
@@ -80,16 +80,16 @@ use polkadot_node_subsystem_util::rand::{self, SeedableRng};
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
 
 /// Arguments passed for overseer construction.
-pub struct OverseerGenArgs<'a, Spawner, RuntimeClient>
+pub struct OverseerGenArgs<'a, Spawner, Client>
 where
-	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
-	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
+	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	/// The keystore to use for i.e. validator keys.
 	pub keystore: Arc<LocalKeystore>,
-	/// Runtime client generic, providing the `ProvieRuntimeApi` trait besides others.
-	pub runtime_client: Arc<RuntimeClient>,
+	/// Generic client, providing the `ProvideRuntimeApi` and database traits among others.
+	pub client: Arc<Client>,
 	/// The underlying key value store for the parachains.
 	pub parachains_db: Arc<dyn polkadot_node_subsystem_util::database::Database>,
 	/// Underlying network service implementation.
@@ -147,10 +147,10 @@ where
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
 /// with all default values.
-pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
+pub fn prepared_overseer_builder<Spawner, Client>(
 	OverseerGenArgs {
 		keystore,
-		runtime_client,
+		client,
 		parachains_db,
 		network_service,
 		sync_service,
@@ -176,11 +176,11 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		req_protocol_names,
 		peerset_protocol_names,
 		offchain_transaction_pool_factory,
-	}: OverseerGenArgs<Spawner, RuntimeClient>,
+	}: OverseerGenArgs<Spawner, Client>,
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
-		Arc<DefaultSubsystemClient<RuntimeClient>>,
+		Arc<DefaultSubsystemClient<Client>>,
 		CandidateValidationSubsystem,
 		PvfCheckerSubsystem,
 		CandidateBackingSubsystem,
@@ -190,7 +190,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		BitfieldSigningSubsystem,
 		BitfieldDistributionSubsystem,
 		ProvisionerSubsystem,
-		RuntimeApiSubsystem<DefaultSubsystemClient<RuntimeClient>>,
+		RuntimeApiSubsystem<DefaultSubsystemClient<Client>>,
 		AvailabilityStoreSubsystem,
 		NetworkBridgeRxSubsystem<
 			Arc<sc_network::NetworkService<Block, Hash>>,
@@ -200,7 +200,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 			Arc<sc_network::NetworkService<Block, Hash>>,
 			AuthorityDiscoveryService,
 		>,
-		ChainApiSubsystem<RuntimeClient>,
+		ChainApiSubsystem<Client>,
 		CollationGenerationSubsystem,
 		CollatorProtocolSubsystem,
 		ApprovalDistributionSubsystem,
@@ -214,8 +214,9 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 	Error,
 >
 where
-	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
-	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client:
+		'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockPinning<Block> + AuxStore,
+	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	use polkadot_node_subsystem_util::metrics::Metrics;
@@ -226,10 +227,8 @@ where
 
 	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
 
-	let runtime_api_client = Arc::new(DefaultSubsystemClient::new(
-		runtime_client.clone(),
-		offchain_transaction_pool_factory,
-	));
+	let runtime_api_client =
+		Arc::new(DefaultSubsystemClient::new(client.clone(), offchain_transaction_pool_factory));
 
 	let builder = Overseer::builder()
 		.network_bridge_tx(NetworkBridgeTxSubsystem::new(
@@ -280,7 +279,7 @@ where
 			keystore.clone(),
 			Metrics::register(registry)?,
 		))
-		.chain_api(ChainApiSubsystem::new(runtime_client.clone(), Metrics::register(registry)?))
+		.chain_api(ChainApiSubsystem::new(client.clone(), Metrics::register(registry)?))
 		.collation_generation(CollationGenerationSubsystem::new(Metrics::register(registry)?))
 		.collator_protocol({
 			let side = match is_parachain_node {
@@ -361,21 +360,25 @@ where
 /// would do.
 pub trait OverseerGen {
 	/// Overwrite the full generation of the overseer, including the subsystems.
-	fn generate<Spawner, RuntimeClient>(
+	fn generate<Spawner, Client>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<Spawner, RuntimeClient>,
+		args: OverseerGenArgs<Spawner, Client>,
 	) -> Result<
-		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<Client>>>, OverseerHandle),
 		Error,
 	>
 	where
-		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
-		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+		Client: 'static
+			+ ProvideRuntimeApi<Block>
+			+ HeaderBackend<Block>
+			+ BlockPinning<Block>
+			+ AuxStore,
+		Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
 		let gen = RealOverseerGen;
-		RealOverseerGen::generate::<Spawner, RuntimeClient>(&gen, connector, args)
+		RealOverseerGen::generate::<Spawner, Client>(&gen, connector, args)
 	}
 	// It would be nice to make `create_subsystems` part of this trait,
 	// but the amount of generic arguments that would be required as
@@ -388,17 +391,21 @@ use polkadot_overseer::KNOWN_LEAVES_CACHE_SIZE;
 pub struct RealOverseerGen;
 
 impl OverseerGen for RealOverseerGen {
-	fn generate<Spawner, RuntimeClient>(
+	fn generate<Spawner, Client>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<Spawner, RuntimeClient>,
+		args: OverseerGenArgs<Spawner, Client>,
 	) -> Result<
-		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<Client>>>, OverseerHandle),
 		Error,
 	>
 	where
-		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
-		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+		Client: 'static
+			+ ProvideRuntimeApi<Block>
+			+ HeaderBackend<Block>
+			+ BlockPinning<Block>
+			+ AuxStore,
+		Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
 		prepared_overseer_builder(args)?

@@ -34,8 +34,8 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
-		DisputeDistributionMessage, ImportStatementsResult,
+		ApprovalVotingMessage, BlockDescription, ChainApiMessage, ChainSelectionMessage,
+		DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, RuntimeApiError,
 };
@@ -402,7 +402,7 @@ impl Initialized {
 			let mut key_ownership_proofs = Vec::new();
 			let mut dispute_proofs = Vec::new();
 
-			for (_height, inclusion_parent) in inclusions {
+			for (_height, inclusion_parent) in inclusions.iter().cloned() {
 				for (validator_index, validator_id) in pending.keys.iter() {
 					let res =
 						key_ownership_proof(ctx.sender(), inclusion_parent, validator_id.clone())
@@ -466,6 +466,16 @@ impl Initialized {
 					"Could not generate key ownership proofs for {} keys",
 					expected_keys - resolved_keys,
 				);
+			} else {
+				gum::debug!(
+					target: LOG_TARGET,
+					?session_index,
+					?candidate_hash,
+					"All good. Unpinning the inclusion blocks",
+				);
+				for (_number, hash) in inclusions {
+					ctx.send_message(ChainApiMessage::UnpinBlock(hash)).await;
+				}
 			}
 			debug_assert_eq!(resolved_keys, dispute_proofs.len());
 
@@ -1267,6 +1277,7 @@ impl Initialized {
 
 		// Notify ChainSelection if a dispute has concluded against a candidate. ChainSelection
 		// will need to mark the candidate's relay parent as reverted.
+		// Also pin the inclusion blocks until we slash the validators.
 		if import_result.has_fresh_byzantine_threshold_against() {
 			let blocks_including = self.scraper.get_blocks_including_candidate(&candidate_hash);
 			for (parent_block_number, parent_block_hash) in &blocks_including {
@@ -1279,6 +1290,9 @@ impl Initialized {
 				);
 			}
 			if blocks_including.len() > 0 {
+				for (_number, inclusion_block_hash) in &blocks_including {
+					ctx.send_message(ChainApiMessage::PinBlock(*inclusion_block_hash)).await;
+				}
 				ctx.send_message(ChainSelectionMessage::RevertBlocks(blocks_including)).await;
 			} else {
 				gum::debug!(

@@ -89,7 +89,7 @@ pub use consensus_common::{Proposal, SelectChain};
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use mmr_gadget::MmrGadget;
 pub use polkadot_primitives::{Block, BlockId, BlockNumber, CollatorPair, Hash, Id as ParaId};
-pub use sc_client_api::{Backend, CallExecutor};
+pub use sc_client_api::{Backend, BlockPinning, CallExecutor};
 pub use sc_consensus::{BlockImport, LongestChain};
 pub use sc_executor::NativeExecutionDispatch;
 use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
@@ -753,9 +753,13 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 		Some(backoff)
 	};
 
-	// Warn the user that BEEFY is still experimental for Polkadot.
-	if enable_beefy && config.chain_spec.is_polkadot() {
-		gum::warn!("BEEFY is still experimental, usage on Polkadot network is discouraged.");
+	// If not on a known test network, warn the user that BEEFY is still experimental.
+	if enable_beefy &&
+		!config.chain_spec.is_rococo() &&
+		!config.chain_spec.is_wococo() &&
+		!config.chain_spec.is_versi()
+	{
+		gum::warn!("BEEFY is still experimental, usage on a production network is discouraged.");
 	}
 
 	let disable_grandpa = config.disable_grandpa;
@@ -1046,7 +1050,7 @@ pub fn new_full<OverseerGenerator: OverseerGen>(
 				overseer_connector,
 				OverseerGenArgs {
 					keystore,
-					runtime_client: overseer_client.clone(),
+					client: overseer_client.clone(),
 					parachains_db,
 					network_service: network.clone(),
 					sync_service: sync_service.clone(),

@@ -34,14 +34,15 @@
 use std::sync::Arc;
 
 use futures::prelude::*;
-use sc_client_api::AuxStore;
+use sc_client_api::{AuxStore, BlockPinning};
+use schnellru::{ByLength, LruMap};
 use sp_blockchain::HeaderBackend;
 
 use polkadot_node_subsystem::{
 	messages::ChainApiMessage, overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 	SubsystemError, SubsystemResult,
 };
-use polkadot_primitives::Block;
+use polkadot_primitives::{Block, Hash};
 
 mod metrics;
 use self::metrics::Metrics;
@@ -50,24 +51,32 @@ use self::metrics::Metrics;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::chain-api";
+// Should be lower than the upper limit in Substrate,
+// but high enough to allow the slashing to succeed.
+const MAX_PINNED_BLOCKS: u32 = 64;
 
 /// The Chain API Subsystem implementation.
 pub struct ChainApiSubsystem<Client> {
 	client: Arc<Client>,
+	// Maps the block hash to the number of times it was pinned.
+	// The mapping is used to limit the number of pinned blocks
+	// and enforce unpinning of blocks that were never unpinned explicitly.
+	pinned_blocks: LruMap<Hash, usize>,
 	metrics: Metrics,
 }
 
 impl<Client> ChainApiSubsystem<Client> {
 	/// Create a new Chain API subsystem with the given client.
 	pub fn new(client: Arc<Client>, metrics: Metrics) -> Self {
-		ChainApiSubsystem { client, metrics }
+		let pinned_blocks = LruMap::new(ByLength::new(MAX_PINNED_BLOCKS));
+		ChainApiSubsystem { client, metrics, pinned_blocks }
 	}
 }
 
 #[overseer::subsystem(ChainApi, error = SubsystemError, prefix = self::overseer)]
 impl<Client, Context> ChainApiSubsystem<Client>
 where
-	Client: HeaderBackend<Block> + AuxStore + 'static,
+	Client: HeaderBackend<Block> + BlockPinning<Block> + AuxStore + 'static,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run::<Client, Context>(ctx, self)
@@ -80,10 +89,10 @@ where
 #[overseer::contextbounds(ChainApi, prefix = self::overseer)]
 async fn run<Client, Context>(
 	mut ctx: Context,
-	subsystem: ChainApiSubsystem<Client>,
+	mut subsystem: ChainApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
-	Client: HeaderBackend<Block> + AuxStore,
+	Client: HeaderBackend<Block> + BlockPinning<Block> + AuxStore,
 {
 	loop {
 		match ctx.recv().await? {
@@ -155,6 +164,40 @@ where
 					let result = next_parent.take(k).collect::<Result<Vec<_>, _>>();
 					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
+				},
+				ChainApiMessage::PinBlock(hash) => {
+					let _timer = subsystem.metrics.time_pin_block();
+
+					// check if the map is full
+					if subsystem.pinned_blocks.len() == MAX_PINNED_BLOCKS as usize {
+						// unpin the least recently pinned block
+						let (hash, count) = subsystem
+							.pinned_blocks
+							.pop_oldest()
+							.expect("len is checked above; qed");
+						for _ in 0..count {
+							subsystem.client.unpin_block(hash);
+						}
+					}
+					if let Some(count) = subsystem.pinned_blocks.get_or_insert(hash, || 0) {
+						*count += 1;
+					}
+					// don't propagate the result
+					// the caller can not do anything about it
+					let result = subsystem.client.pin_block(hash);
+					subsystem.metrics.on_request(result.is_ok());
+				},
+				ChainApiMessage::UnpinBlock(hash) => {
+					let _timer = subsystem.metrics.time_unpin_block();
+					if let Some(count) = subsystem.pinned_blocks.get(&hash) {
+						*count = count.saturating_sub(1);
+						if *count == 0 {
+							let _ = subsystem.pinned_blocks.remove(&hash);
+						}
+					}
+					subsystem.client.unpin_block(hash);
+					// always succeeds
+					subsystem.metrics.on_request(true);
 				},
 			},
 		}

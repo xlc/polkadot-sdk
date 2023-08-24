@@ -12089,6 +12089,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-client-api",
  "sc-consensus-babe",
+ "schnellru",
  "sp-blockchain",
  "sp-core",
  "tracing-gum",

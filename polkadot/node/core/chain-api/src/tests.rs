@@ -185,6 +185,14 @@ impl AuxStore for TestClient {
 	}
 }
 
+impl BlockPinning<Block> for TestClient {
+	fn pin_block(&self, _hash: Hash) -> sp_blockchain::Result<()> {
+		Ok(())
+	}
+
+	fn unpin_block(&self, _hash: Hash) {}
+}
+
 #[test]
 fn request_block_number() {
 	test_harness(|client, mut sender| {

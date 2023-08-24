@@ -577,6 +577,12 @@ pub enum ChainApiMessage {
 		/// The response channel.
 		response_channel: ChainApiResponseChannel<Vec<Hash>>,
 	},
+	/// Pin the block to keep state available in-memory after pruning.
+	/// Number of pins are reference counted. Users need to make sure to perform
+	/// one call to [`UnpinBlock`] per call to [`PinBlock`].
+	PinBlock(Hash),
+	/// Unpin the block to allow pruning.
+	UnpinBlock(Hash),
 }
 
 /// Chain selection subsystem messages

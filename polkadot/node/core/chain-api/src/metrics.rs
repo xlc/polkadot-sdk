@@ -25,6 +25,8 @@ pub(crate) struct MetricsInner {
 	pub(crate) finalized_block_hash: prometheus::Histogram,
 	pub(crate) finalized_block_number: prometheus::Histogram,
 	pub(crate) ancestors: prometheus::Histogram,
+	pub(crate) pin_block: prometheus::Histogram,
+	pub(crate) unpin_block: prometheus::Histogram,
 }
 
 /// Chain API metrics.
@@ -74,6 +76,16 @@ impl Metrics {
 	/// Provide a timer for `ancestors` which observes on drop.
 	pub fn time_ancestors(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.ancestors.start_timer())
+	}
+
+	/// Provide a timer for `pin_block` which observes on drop.
+	pub fn time_pin_block(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.pin_block.start_timer())
+	}
+
+	/// Provide a timer for `unpin_block` which observes on drop.
+	pub fn time_unpin_block(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.unpin_block.start_timer())
 	}
 }
 
@@ -129,6 +141,20 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_chain_api_ancestors",
 					"Time spent within `chain_api::ancestors`",
+				))?,
+				registry,
+			)?,
+			pin_block: prometheus::register(
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"polkadot_parachain_chain_api_pin_block",
+					"Time spent within `chain_api::pin_block`",
+				))?,
+				registry,
+			)?,
+			unpin_block: prometheus::register(
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"polkadot_parachain_chain_api_unpin_block",
+					"Time spent within `chain_api::unpin_block`",
 				))?,
 				registry,
 			)?,

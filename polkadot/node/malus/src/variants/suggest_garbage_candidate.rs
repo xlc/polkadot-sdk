@@ -25,8 +25,8 @@
 use polkadot_cli::{
 	prepared_overseer_builder,
 	service::{
-		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
+		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, BlockPinning, Error, HeaderBackend,
+		Overseer, OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
 		ProvideRuntimeApi,
 	},
 	Cli,
@@ -262,17 +262,21 @@ pub(crate) struct SuggestGarbageCandidates {
 }
 
 impl OverseerGen for SuggestGarbageCandidates {
-	fn generate<Spawner, RuntimeClient>(
+	fn generate<Spawner, Client>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<'_, Spawner, RuntimeClient>,
+		args: OverseerGenArgs<'_, Spawner, Client>,
 	) -> Result<
-		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<RuntimeClient>>>, OverseerHandle),
+		(Overseer<SpawnGlue<Spawner>, Arc<DefaultSubsystemClient<Client>>>, OverseerHandle),
 		Error,
 	>
 	where
-		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
-		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+		Client: 'static
+			+ ProvideRuntimeApi<Block>
+			+ HeaderBackend<Block>
+			+ BlockPinning<Block>
+			+ AuxStore,
+		Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
 		gum::info!(
