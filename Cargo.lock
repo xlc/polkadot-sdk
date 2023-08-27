@@ -5899,6 +5899,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "goblin"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d6b4de4a8eb6c46a8c77e1d3be942cb9a8bf073c22374578e5ba4b08ed0ff68"
+dependencies = [
+ "log",
+ "plain",
+ "scroll",
+]
+
+[[package]]
 name = "group"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6222,6 +6233,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f31827a206f56af32e590ba56d5d2d085f558508192593743f16b2306495269f"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "iced-x86"
+version = "1.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdd366a53278429c028367e0ba22a46cab6d565a57afb959f06e92c7a69e7828"
+dependencies = [
+ "lazy_static",
 ]
 
 [[package]]
@@ -11579,6 +11599,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
+name = "plain"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
+
+[[package]]
 name = "platforms"
 version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13331,6 +13357,17 @@ dependencies = [
  "polkadot-runtime",
  "sp-io",
  "westend-runtime",
+]
+
+[[package]]
+name = "polkavm"
+version = "0.1.0"
+source = "git+https://github.com/koute/polkavm-experiment.git#675a05f7c372267dbc1e1fef81b4498af731ada3"
+dependencies = [
+ "goblin",
+ "iced-x86",
+ "log",
+ "nix 0.26.2",
 ]
 
 [[package]]
@@ -15317,6 +15354,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "paste",
+ "polkavm",
  "rustix 0.36.15",
  "sc-allocator",
  "sc-executor-common",
@@ -16157,6 +16195,26 @@ name = "scratch"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3cf7c11c38cb994f3d40e8a8cde3bbd1f72a435e4c49e85d6553d8312306152"
+
+[[package]]
+name = "scroll"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04c565b551bafbef4157586fa379538366e4385d42082f255bfd96e4fe8519da"
+dependencies = [
+ "scroll_derive",
+]
+
+[[package]]
+name = "scroll_derive"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1db149f81d46d2deba7cd3c50772474707729550221e69588478ebf9ada425ae"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.29",
+]
 
 [[package]]
 name = "sct"
