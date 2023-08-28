@@ -194,8 +194,8 @@ where
 						if *count == 0 {
 							let _ = subsystem.pinned_blocks.remove(&hash);
 						}
+						subsystem.client.unpin_block(hash);
 					}
-					subsystem.client.unpin_block(hash);
 					// always succeeds
 					subsystem.metrics.on_request(true);
 				},
