@@ -1675,6 +1675,8 @@ async fn handle_incoming_message<'a, Context>(
 
 			let mut _span = handle_incoming_span.child("notify-backing");
 
+			// TODO: check if peer is disabled?
+
 			// When we receive a new message from a peer, we forward it to the
 			// candidate backing subsystem.
 			ctx.send_message(CandidateBackingMessage::Statement(relay_parent, statement_with_pvd))

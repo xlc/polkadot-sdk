@@ -1583,6 +1583,8 @@ async fn send_backing_fresh_statements<Context>(
 			})
 			.expect("statements refer to same candidate; qed");
 
+		// TODO: check if peer is disabled?
+
 		ctx.send_message(CandidateBackingMessage::Statement(*relay_parent, carrying_pvd))
 			.await;
 	}
