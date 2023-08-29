@@ -120,7 +120,7 @@ impl<T: Config> MigrationStep for Migration<T> {
 	const VERSION: u16 = 15;
 
 	fn max_step_weight() -> Weight {
-		T::WeightInfo::v15_migration_step()
+		<T as Config>::WeightInfo::v15_migration_step()
 	}
 
 	fn step(&mut self) -> (IsFinished, Weight) {
@@ -137,8 +137,8 @@ impl<T: Config> MigrationStep for Migration<T> {
 			System::<T>::dec_consumers(deposit_account);
 
 			// Get the deposit balance to transfer.
-			let total_deposit_balance = T::Currency::total_balance(deposit_account);
-			let reducible_deposit_balance = T::Currency::reducible_balance(
+			let total_deposit_balance = <T as Config>::Currency::total_balance(deposit_account);
+			let reducible_deposit_balance = <T as Config>::Currency::reducible_balance(
 				deposit_account,
 				Preservation::Expendable,
 				Fortitude::Force,
@@ -167,7 +167,7 @@ impl<T: Config> MigrationStep for Migration<T> {
 				HexDisplay::from(&deposit_account.encode()),
 				HexDisplay::from(&account.encode())
 			);
-			let transferred_deposit_balance = T::Currency::transfer(
+			let transferred_deposit_balance = <T as Config>::Currency::transfer(
 				deposit_account,
 				&account,
 				reducible_deposit_balance,
@@ -200,7 +200,7 @@ impl<T: Config> MigrationStep for Migration<T> {
 					HexDisplay::from(&account.encode())
 				);
 
-				T::Currency::hold(
+				<T as Config>::Currency::hold(
 					&HoldReason::StorageDepositReserve.into(),
 					&account,
 					transferred_deposit_balance,
@@ -232,10 +232,10 @@ impl<T: Config> MigrationStep for Migration<T> {
 			// Store last key for next migration step
 			self.last_account = Some(account);
 
-			(IsFinished::No, T::WeightInfo::v15_migration_step())
+			(IsFinished::No, <T as Config>::WeightInfo::v15_migration_step())
 		} else {
 			log::info!(target: LOG_TARGET, "Done Migrating Storage Deposits.");
-			(IsFinished::Yes, T::WeightInfo::v15_migration_step())
+			(IsFinished::Yes, <T as Config>::WeightInfo::v15_migration_step())
 		}
 	}
 
@@ -251,8 +251,8 @@ impl<T: Config> MigrationStep for Migration<T> {
 				(
 					account.clone(),
 					contract.clone(),
-					T::Currency::total_balance(&account),
-					T::Currency::total_balance(&contract.deposit_account),
+					<T as Config>::Currency::total_balance(&account),
+					<T as Config>::Currency::total_balance(&contract.deposit_account),
 				)
 			})
 			.collect();
@@ -274,8 +274,8 @@ impl<T: Config> MigrationStep for Migration<T> {
 			log::debug!(target: LOG_TARGET, "Account: 0x{} ", HexDisplay::from(&account.encode()));
 
 			let on_hold =
-				T::Currency::balance_on_hold(&HoldReason::StorageDepositReserve.into(), &account);
-			let account_balance = T::Currency::total_balance(&account);
+				<T as Config>::Currency::balance_on_hold(&HoldReason::StorageDepositReserve.into(), &account);
+			let account_balance = <T as Config>::Currency::total_balance(&account);
 
 			log::debug!(
 				target: LOG_TARGET,
