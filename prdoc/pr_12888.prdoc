@@ -12,10 +12,6 @@ crates:
 - name: sp-crypto-ec-utils
   bump: major
 - name: sp-core
-  bump: minor
+  bump: none
 - name: sp-keystore
-  bump: patch
-- name: sp-rpc
-  bump: patch
-- name: sc-storage-monitor
-  bump: patch
+  bump: none
