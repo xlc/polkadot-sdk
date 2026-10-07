@@ -220,8 +220,6 @@ impl pallet_balances::Config for Runtime {
 	type ReserveIdentifier = [u8; 8];
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type RuntimeFreezeReason = RuntimeFreezeReason;
-	type FreezeIdentifier = RuntimeFreezeReason;
-	type MaxFreezes = frame_support::traits::VariantCountOf<RuntimeFreezeReason>;
 	type DoneSlashHandler = ();
 }
 
@@ -673,6 +671,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				c,
 				RuntimeCall::Balances { .. } |
 					RuntimeCall::Assets { .. } |
+					// The other `pallet-assets` instances transfer value just like `Assets` does.
+					RuntimeCall::ForeignAssets { .. } |
+					RuntimeCall::PoolAssets { .. } |
 					RuntimeCall::NftFractionalization { .. } |
 					RuntimeCall::Nfts { .. } |
 					RuntimeCall::Uniques { .. }
@@ -1226,6 +1227,7 @@ pub type BlockId = generic::BlockId<Block>;
 pub type TxExtension = cumulus_pallet_weight_reclaim::StorageWeightReclaim<
 	Runtime,
 	(
+		frame_system::AuthorizeCall<Runtime>,
 		frame_system::CheckNonZeroSender<Runtime>,
 		frame_system::CheckSpecVersion<Runtime>,
 		frame_system::CheckTxVersion<Runtime>,
@@ -2341,4 +2343,35 @@ fn ensure_key_ss58() {
 	let acc =
 		AccountId::from_ss58check("5F4EbSkZz18X36xhbsjvDNs6NuZ82HyYtq5UiJ1h9SBHJXZD").unwrap();
 	assert_eq!(acc, RootMigController::sorted_members()[0]);
+}
+
+#[test]
+fn non_transfer_proxy_denies_other_asset_instances() {
+	use frame_support::traits::InstanceFilter;
+
+	// `ForeignAssets` (Instance2) and `PoolAssets` (Instance3) move fungibles just like
+	// `Assets` (Instance1) does, so a `NonTransfer` proxy must not be able to call them.
+	let foreign_assets_transfer = RuntimeCall::ForeignAssets(pallet_assets::Call::<
+		Runtime,
+		ForeignAssetsInstance,
+	>::transfer {
+		id: xcm::v5::Location::parent(),
+		target: sp_runtime::MultiAddress::Id(AccountId::from([0u8; 32])),
+		amount: 1,
+	});
+	assert!(
+		!ProxyType::NonTransfer.filter(&foreign_assets_transfer),
+		"NonTransfer must deny ForeignAssets transfers",
+	);
+
+	let pool_assets_transfer =
+		RuntimeCall::PoolAssets(pallet_assets::Call::<Runtime, PoolAssetsInstance>::transfer {
+			id: 1,
+			target: sp_runtime::MultiAddress::Id(AccountId::from([0u8; 32])),
+			amount: 1,
+		});
+	assert!(
+		!ProxyType::NonTransfer.filter(&pool_assets_transfer),
+		"NonTransfer must deny PoolAssets transfers",
+	);
 }
